@@ -1,4 +1,5 @@
 import {
+  ConnectedSocket, MessageBody,
   OnGatewayConnection,
   OnGatewayDisconnect,
   SubscribeMessage,
@@ -8,26 +9,26 @@ import {
 import { Socket, Server } from "socket.io";
 
 @WebSocketGateway(3002, {cors: {origin: '*'}})
-export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class ChatGateway {
   @WebSocketServer() server: Server;
 
-  handleConnection(client: any): any {
-    console.log("New user connected", client.id)
+  @SubscribeMessage('join-room')
+  handleJoinRoom(@MessageBody() details: {clientName: string, roomId: string}, @ConnectedSocket() client: Socket): any {
+    client.join(details.roomId);
 
-    client.broadcast.emit('user-joined', {
-      message: `New user joined ${client.id}`,          // Цей метод відправляє всім,окрім відправника
-    })
+    client.to(details.roomId).emit('user-joined', `User ${details.clientName} has joined the room`);
   }
 
-  handleDisconnect(client: any): any {
-    console.log("User disconnected", client.id)
+  @SubscribeMessage('send-message')
+  handleSendMessage(@MessageBody() details: {clientName: string, message: any, roomId: string}, @ConnectedSocket() client: Socket) {
+
+    client.to(details.roomId).emit('reply', {client: details.clientName, message: details.message});
   }
 
-  @SubscribeMessage('newMessage')
-  handleNewMessage(client: Socket, message: any) {
-    console.log(message);
+  @SubscribeMessage('user-left')
+  handleUserLeft(@MessageBody() details: {clientName: string, roomId: string}, @ConnectedSocket() client: Socket) {
 
-    //this.server.emit('reply', message);
-    client.broadcast.emit('reply', message);
+    console.log("disconnected")
+    client.to(details.roomId).emit('user-leave', `User ${details.clientName} has left the room`);
   }
 }
